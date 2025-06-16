@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Weight Event Log</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f4f4f4;
+        }
+        table {
+            border-collapse: collapse;
+            width: 80%;
+            background: white;
+            margin-top: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px;
+            text-align: center;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>Weight Events</h1>
+    <form method="get" action="/events">
+        <label>Min Weight: <input type="number" step="0.01" name="min_weight"></label>
+        <label>Max Weight: <input type="number" step="0.01" name="max_weight"></label>
+        <label>Start Time: <input type="datetime-local" name="start"></label>
+        <label>End Time: <input type="datetime-local" name="end"></label>
+        <button type="submit">Filter</button>
+    </form>
+    <div><a href="/events.csv">Download CSV</a></div>
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Starting Weight</th>
+                <th>Final Weight</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for event in events %}
+            <tr>
+                <td>{{ event.timestamp }}</td>
+                <td>{{ event.starting_weight }}</td>
+                <td>{{ event.final_weight }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <script>
+        setInterval(() => {
+            fetch(window.location.href)
+                .then(res => res.text())
+                .then(html => { document.body.innerHTML = html; });
+        }, 10000);
+    </script>
+</body>
+</html>

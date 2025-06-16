@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Scale Calibration</title>
+    <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+</head>
+<body>
+    <h1>Calibrate Scale</h1>
+    <form hx-post="/calibrate" hx-target="#results" hx-swap="innerHTML">
+        <label for="weight">Reference Weight (lbs):</label>
+        <input type="number" step="0.01" name="reference_weight" required>
+        <button type="submit">Calibrate</button>
+    </form>
+    <div id="results"></div>
+</body>
+</html>
