@@ -2,7 +2,7 @@ import sqlite3
 from uuid import uuid4
 from datetime import datetime
 
-conn = sqlite3.connect("weights.db", check_same_thread=False)
+conn = sqlite3.connect("scale_data.db", check_same_thread=False)
 
 conn.execute('''
 CREATE TABLE IF NOT EXISTS weight_events (
