@@ -10,6 +10,7 @@
 #define LOADCELL_3_SCK A5
 #define LOADCELL_4_DOUT 2
 #define LOADCELL_4_SCK 3
+
 #define N_SENSORS 4
 
 class Sensors {
@@ -94,29 +95,32 @@ class Sensors {
         }
 
         String getJsonReadings() {
-            String jsonString = "{";
+            StaticJsonDocument<256> doc;
             for (int i = 0; i < 4; i++) {
-                jsonString += "\"sensor_";
-                jsonString += String(i);
-                jsonString += "\":";
-                jsonString += String(getReading(i), 2);
-                jsonString += ",";
+                String sensor = "sensor_" + String(i);
+                doc[sensor] = String(getReading(i), 2);
             }
-            jsonString += "\"average\":"; 
-            jsonString += String(getAverageReading(), 2);
-            jsonString += "}";
-            return jsonString;
+            doc["average"] = String(getAverageReading(), 2);
+
+            String jsonReadings;
+            serializeJson(doc, jsonReadings);
+
+            return jsonReadings;
         }
 
         String getJsonCalibration() {
-            String jsonString = "{\"calibration\":[";
+            StaticJsonDocument<256> doc;
+            float calibration[4];
 
             for (int i = 0; i < 4; i++) {
-                jsonString += String(sensorArray[i]->get_scale(), 5);
-                if (i < 3) jsonString += ", ";
+                calibration[i] = sensorArray[i]->get_scale();
             }
-            jsonString += "]}";
-            return jsonString;
+            doc["calibration"] = calibration;
+            
+            String calibrationValues;
+            serializeJson(doc, calibrationValues);
+
+            return calibrationValues;
         }
 };
 
@@ -184,28 +188,45 @@ void loop() {
     delay(500);
 }
 
-void outputCommandStatusToSerial(bool statusSuccess, String output_data_json_string) {
-    String statusString = statusSuccess ? "success" : "failed";
-    String line = "{\"status\": \"" + statusString + "\", \"data\": " + output_data_json_string + "}";
-    Serial.println(line); 
+void sendResponseMessage(const String& message, const String& uuid, bool status) {
+    StaticJsonDocument<512> response;
+    response["message"] = message;
+    response["message_uuid"] = uuid;
+    response["status"] = status ? "success": "failed";
+    serializeJson(response, Serial);
+    Serial.println();
 }
 
 void checkSerialCommands() {
     if (Serial.available()) {
         input = Serial.readStringUntil('\n');
         input.trim();
-    }
 
-    if (input.startsWith("CALIBRATE:")) {
-        float refWeight = input.substring(10).toFloat();
-        sensorSystem.doCalibration(refWeight);
-        String calibrationJsonString = sensorSystem.getJsonCalibration();
-        outputCommandStatusToSerial(true, calibrationJsonString);
-        saveCalibrationToMemory(calibrationJsonString);
-    } else if (input == "TARE") {
-        sensorSystem.tareSensors();
-        outputCommandStatusToSerial(true, "{\"message\": \"tare success\"}");
-    }
+        StaticJsonDocument<256> doc;
+        DeserializationError error = deserializeJson(doc, input);
+
+        if (error) {
+            sendResponseMessage("invalid command", "unknown", false);
+            return;
+        }
+
+        String message = doc["message"] | "";
+        String message_uuid = doc["message_uuid"] | "unknown";
+
+        if (message.startsWith("CALIBRATE:")) {
+            float refWeight = message.substring(10).toFloat();
+            sensorSystem.doCalibration(refWeight);
+            String calibrationJsonString = sensorSystem.getJsonCalibration();
+
+            sendResponseMessage(calibrationJsonString, message_uuid, true);
+           
+            saveCalibrationToMemory(calibrationJsonString);
+
+        } else if (message == "TARE") {
+            sensorSystem.tareSensors();
+            
+            sendResponseMessage("tare success", message_uuid, true);
+        }
 
     input = ""; // clear input after processing
 }
