@@ -26,7 +26,7 @@ class ScaleStateManager():
         self._event_delta_baseline = None
 
     def _handle_data_message(self, message: dict):
-        current = message.get("average")
+        current = message.get("weight")
 
         if current is None:
             return

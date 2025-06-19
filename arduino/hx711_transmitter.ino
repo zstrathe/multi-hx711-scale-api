@@ -34,6 +34,7 @@ class Sensors {
             hx2.begin(LOADCELL_2_DOUT, LOADCELL_2_SCK);
             hx3.begin(LOADCELL_3_DOUT, LOADCELL_3_SCK);
             hx4.begin(LOADCELL_4_DOUT, LOADCELL_4_SCK);
+
             tareSensors();
 
             if (scale_weights != nullptr) {
@@ -41,6 +42,10 @@ class Sensors {
             } else {
                 Serial.println("Calibration is required for sensors!");
             }
+        }
+
+        int getTaredSensorValue(int arrayPos) {
+            return sensorArray[arrayPos]->get_value(10);
         }
 
         void tareSensors() {
@@ -67,40 +72,45 @@ class Sensors {
             //TODO: UPDATE TO DETECT WHEN WEIGHT IS PLACED???
             delay(5000);  // Wait 5 sec for manual placement
             
+            float taredTotalMeasure = 0.0;
             for (int i = 0; i < 4; ++i) {
-                // get_units returns the value divided by scale, need to call get_value instead???
-                float raw_units = sensorArray[i]->get_value(10);
-                float scale_val = raw_units / refWeight;
-                sensorArray[i]->set_scale(scale_val);
+                taredTotalMeasure += getTaredSensorValue(i);
             }
+            
+            float calibrationRatio = taredTotalMeasure / refWeight;
+            
+            float applyWeights[4] = {calibrationRatio, calibrationRatio, calibrationRatio, calibrationRatio};
+            setScaleWeights(applyWeights);
+      
         }
 
         void refreshReadings() {
+            // get reading as scaled and with offset (get_units)
             for (int i = 0; i < 4; i++) {
                 readingValues[i] = sensorArray[i]->get_units(10);
             }
         }
 
-        float getReading(int sensorNumber) {
+        float getIndividualReading(int sensorNumber) {
             if (sensorNumber < 0 || sensorNumber >= 4) return 0.0;
             return readingValues[sensorNumber];  
         }
 
-        float getAverageReading() {
+        float getWeightReading() {
             float total = 0.0;
             for (int i = 0; i < 4; i++) {
                 total += readingValues[i];
             }
-            return total / 4.0;
+            return total;
         }
 
         String getJsonReadings() {
             StaticJsonDocument<256> doc;
             for (int i = 0; i < 4; i++) {
                 String sensor = "sensor_" + String(i);
-                doc[sensor] = String(getReading(i), 2);
+                doc[sensor] = String(getIndividualReading(i), 2);
             }
-            doc["average"] = String(getAverageReading(), 2);
+            doc["weight"] = String(getWeightReading(), 2);
 
             String jsonReadings;
             serializeJson(doc, jsonReadings);
@@ -153,7 +163,7 @@ float* getSavedCalibrationFromMemory() {
         return nullptr;
     }
 
-    StaticJsonDocument<512> doc;
+    StaticJsonDocument<256> doc;
     DeserializationError error = deserializeJson(doc, jsonString);
     if (error) {
         Serial.println("Failed to parse JSON");
@@ -161,24 +171,24 @@ float* getSavedCalibrationFromMemory() {
         return nullptr;
     }
 
-    JsonArray configWeights = doc["calibration"];
+    JsonArray storedCalibrationRatios = doc["calibration"];
 
-    if (!configWeights || configWeights.isNull()) {
+    if (!storedCalibrationRatios || storedCalibrationRatios.isNull()) {
         Serial.println("Calibration array from memory is empty!");
         return nullptr;
     }
     
-    if (configWeights.size() != 4) {
+    if (storedCalibrationRatios.size() != 4) {
         Serial.println("Calibration array from memory is wrong size!");
         return nullptr;
     }
 
-    static float configValues[4];
+    static float outCalibrationRatios[4];
     for (int i = 0; i < 4; i++) {
-        configValues[i] = configWeights[i];
+        outCalibrationRatios[i] = storedCalibrationRatios[i];
     }
 
-    return configValues;
+    return outCalibrationRatios;
 }
 
 void loop() {
@@ -227,8 +237,6 @@ void checkSerialCommands() {
             
             sendResponseMessage("tare success", message_uuid, true);
         }
-
+    }
     input = ""; // clear input after processing
 }
-
-
