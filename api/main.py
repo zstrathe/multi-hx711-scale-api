@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Body, Form, Request, Query
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from sensors.state import state
+from sensors.state import scale_state, message_handler
 from config import Config
 from db.database import get_events, get_all_events, get_filtered_events
 from datetime import datetime
@@ -42,16 +42,16 @@ def download_csv(min_weight: float = Query(None), max_weight: float = Query(None
 
 @app.get("/status")
 def status():
-    return {"weight": state.current_weight}
+    return {"weight": scale_state.current_weight}
 
 
 @app.post("/calibrate")
 def calibrate(reference_weight: float = Body(...)):
-    result = state.send_message_wait_for_response(f"CALIBRATE:{reference_weight}")
+    result = message_handler.send_message_wait_for_response(f"CALIBRATE:{reference_weight}")
     return result if result.get("status") == "success" else JSONResponse(content=result, status_code=500)
 
 
 @app.post("/tare")
 def tare():
-    result = state.send_message_wait_for_response("TARE")
+    result = message_handler.send_message_wait_for_response("TARE")
     return result if result.get("status") == "success" else JSONResponse(content=result, status_code=500)

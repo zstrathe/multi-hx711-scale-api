@@ -1,47 +1,61 @@
-from datetime import datetime, timedelta
 import uuid
 import json
 import logging
-from collections import deque
 import threading
+import concurrent.futures
 
 from db.database import log_event
 from sensors.serial_handler import outgoing_message_queue
 
-class StateManager():
-    _status_buffer_lock = threading.Lock()
-    _status_buffer_maxlen = 100
-    _status_message_buffer = deque(maxlen=_status_buffer_maxlen)
-    _status_message_id_counter = 0
+class ScaleStateManager():
+    """
+    Singleton class for managing state, such as:
+        - current weight on scale, 
+    """
+    _instance = None
 
-    current_weight = 0.0
-    _event_delta_baseline = None
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._init_state()
+        return cls._instance
     
-    def __init__(self):
-        self._instance_buffer_position = 0
-
-    def _check_if_message_is_data_or_status(self, message: str):
-        try:
-            message = json.loads(message)
-            if message.get("status"):
-                return "status"
-            return "data"
-
-        except json.JSONDecodeError:
-            return
+    def _init_state(self):
+        # init class variables
+        self.current_weight = 0.0
+        self._event_delta_baseline = None
 
     def _handle_data_message(self, message: dict):
         current = message.get("average")
 
         if current is None:
             return
-        type(self).current_weight = current
-        if type(self)._event_delta_baseline is None:
-            type(self)._event_delta_baseline = current
+        
+        self.current_weight = current
+
+        if self._event_delta_baseline is None:
+            self._event_delta_baseline = current
             return
-        if abs(current - type(self)._event_delta_baseline) >= 5:
-            log_event(type(self)._event_delta_baseline, current)
-            type(self)._event_delta_baseline = current
+        
+        if abs(current - self._event_delta_baseline) >= 5:
+            log_event(self._event_delta_baseline, current)
+            self._event_delta_baseline = current
+
+class MessageHandler():
+    """
+    Singleton class for handling messages between RPi and Arduino via serial
+    """
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._init_state()
+        return cls._instance
+
+    def _init_state(self):
+        self._pending_message_futures = {}
+        self._futures_lock = threading.Lock()
     
     def _try_parse_to_json(self, value: str):
         try:
@@ -53,82 +67,38 @@ class StateManager():
         value, is_json = self._try_parse_to_json(value)
 
         if is_json:
-            if value.get("status"):
-                # if there is a status field, then append it to the buffer
-                self.append_to_status_message_buffer(value)
+
+            # handle status messages asynchronously with futures
+            msg_uuid = value.get("message_uuid")
+            if msg_uuid:
+                with self._futures_lock:
+                    future = self._pending_message_futures.pop(msg_uuid, None)
+                if future and not future.done():
+                    future.set_result(value)
+    
             else:
-                # assume it's a data message
-                self._handle_data_message(value)
+                # assume it's a data message if there is no message_uuid field
+                scale_state._handle_data_message(value)
         else:
             # assume message is meant to be informational / print to terminal
             logging.info(value)
 
-    def append_to_status_message_buffer(self, message: dict):
-        """
-        Add a new message to the buffer and ID.
-        Thread-safe.
-        """
-        with type(self)._status_buffer_lock:
-            type(self)._status_message_id_counter += 1
-            message = {
-                "id": type(self)._status_message_id_counter,
-                "value": message
-            }
-            type(self)._status_message_buffer.append(message)
-
-
-    def get_messages_since(self, last_seen_id: int):
-        """
-        Return a list of messages where id > last_seen_id.
-        Thread-safe.
-        """
-        with type(self)._status_buffer_lock:
-            return [msg for msg in type(self)._status_message_buffer if msg["id"] > last_seen_id]
-        
-
-
-    def get_latest_message(self):
-        """
-        Return the most recent message (or None if buffer is empty).
-        Thread-safe.
-        """
-        with type(self)._status_buffer_lock:
-            if type(self)._status_message_buffer:
-                return type(self)._status_message_buffer[-1]
-            return None
-
-
-    def get_all_messages(self):
-        """
-        Return all messages currently in the buffer.
-        Thread-safe.
-        """
-        with type(self)._status_buffer_lock:
-            return list(type(self)._status_message_buffer)
-
     def watch_for_message(self, message_uuid, timeout = 20):
-        timeout_dt = datetime.now() + timedelta(seconds=timeout)
+        future = concurrent.futures.Future()
+        with self._futures_lock:
+            self._pending_message_futures[message_uuid] = future
         
-        while datetime.now() < timeout_dt: 
-            for incoming_message in self.get_messages_since(self._instance_buffer_position):
-                msg_id, raw_value = incoming_message.values()
-                try:
-                    parsed_value = json.loads(raw_value)
-                except json.JSONDecodeError:
-                    continue
+        try:
+            response_message = future.result(timeout=timeout)
+            # filter out the message_uuid field as itn's no longer relevant
+            response_message = {k: v for k, v in response_message.items() if k != "message_uuid"}
+            return response_message
+        except concurrent.futures.TimeoutError:
+            with self._futures_lock:
+                self._pending_message_futures.pop(message_uuid, None)
+            logging.info(f"No response received, timed out ({timeout} seconds)")
+            return {}
 
-                if parsed_value.get("message_uuid", "") == message_uuid:
-                    self._instance_buffer_position = msg_id
-                    # drop the "uuid" k/v pair as it's no longer needed from here on
-                    return {k: v for k, v in parsed_value.items() if k != "message_uuid"}
-                
-                self._instance_buffer_position = msg_id
-            
-            threading.Event().wait(0.1)
-        
-        logging.info(f"No response received, timed out ({timeout} seconds)")
-        return {}        
-    
     def send_message_wait_for_response(self, message: str):
         """
         Send a serial message, wait for, and return a status response
@@ -138,7 +108,8 @@ class StateManager():
         
         response = self.watch_for_message(message_uuid)
 
-        logging.info(f"Sent message: {response.get('status', 'ERROR: no status returned!')}!")
+        logging.info(f"Sent message: {response.get('status', 'ERROR: no status returned')}")
         return response
 
-state = StateManager()
+scale_state = ScaleStateManager()
+message_handler = MessageHandler()
