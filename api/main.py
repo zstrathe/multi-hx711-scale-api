@@ -8,7 +8,8 @@ import csv
 import io
 
 from db.database import get_events, get_all_events, get_filtered_events
-from sensors.state import scale_state, message_handler
+from sensors.state import scale_state 
+from sensors.message_handler import message_handler
 from sensors.serial_handler import start_serial_threads
 
 SERIAL_ADDRESS = Config.SERIAL_ADDRESS

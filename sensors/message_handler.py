@@ -3,8 +3,9 @@ import json
 import logging
 import threading
 import concurrent.futures
-from state import scale_state
-from message_queue import outgoing_message_queue
+
+from sensors.state import scale_state
+from sensors.message_queue import outgoing_message_queue
 
 class MessageHandler():
     """
