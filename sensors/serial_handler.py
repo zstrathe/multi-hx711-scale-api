@@ -1,17 +1,16 @@
 import logging
 import serial
-from queue import Queue, Empty
+from queue import Empty
 from concurrent.futures import ThreadPoolExecutor
 
 from config import Config
+from sensors.message_queue import outgoing_message_queue
 from sensors.state import message_handler
 
 SERIAL_ADDRESS = Config.SERIAL_ADDRESS
 SERIAL_BAUDRATE = Config.SERIAL_BAUDRATE
 
 ser = serial.Serial(SERIAL_ADDRESS, SERIAL_BAUDRATE, timeout=1)
-
-outgoing_message_queue = Queue(maxsize=20)
 
 def _write_to_serial():
     while True:

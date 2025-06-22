@@ -5,7 +5,7 @@ import threading
 import concurrent.futures
 
 from db.database import log_event
-from sensors.serial_handler import outgoing_message_queue
+from sensors.message_queue import outgoing_message_queue
 
 class ScaleStateManager():
     """
