@@ -9,6 +9,7 @@ import io
 
 from db.database import get_events, get_all_events, get_filtered_events
 from sensors.state import scale_state, message_handler
+from sensors.serial_handler import start_serial_threads
 
 SERIAL_ADDRESS = Config.SERIAL_ADDRESS
 SERIAL_BAUDRATE = Config.SERIAL_BAUDRATE
@@ -16,9 +17,13 @@ SERIAL_BAUDRATE = Config.SERIAL_BAUDRATE
 app = FastAPI()
 templates = Jinja2Templates(directory="web/templates")
 
+@app.on_event("startup")
+def startup_event():
+    start_serial_threads()
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse("calibrate.html", {"request": request})
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
 @app.get("/events", response_class=HTMLResponse)

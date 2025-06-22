@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Scale Interface</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        .center-wrap {
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 850px;
+        }
+
+        .column {
+            float: left;
+            width: 50%;
+            padding: 0px 15px 0px 0px;
+        }
+
+        .row:after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+
+        @media screen and (max-width: 1000px) {
+            .container {
+                padding: 0 20px;
+            }
+        }
+
+        @media screen and (max-width: 600px) {
+            .column {
+                width: 100%;
+            }
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        .left-pane, .right-pane {
+            padding: 20px;
+        }
+
+        .button {
+            margin: 10px 0;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        #calibration-weight {
+            padding: 6px 12px;
+            font-size: 12px;
+            height: auto;
+            width: auto;
+            min-width: 140px;
+        }
+
+        .weight-display {
+            margin-top: 20px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="center-wrap">
+        <div class="container">
+            <div class="row">
+                <div class="column left-pane">
+                    <button class="button" onclick="sendCommand('/tare')">Tare</button><br>
+
+                    <div style="margin-top: 10px;">
+                        <label for="calibration-weight">Calibration Weight (lbs):</label><br>
+                        <input type="number" id="calibration-weight" step="0.01" placeholder="e.g. 25.00">
+                        <button class="button" onclick="calibrate()">Calibrate</button>
+                    </div>
+
+                    <div class="weight-display">
+                        Live Weight: <span id="live-weight">Loading...</span> lbs
+                    </div>
+                </div>
+
+                <div class="column right-pane">
+                    <h2>Weight Events</h2>
+                    <form method="get" action="/events">
+                        <label>Min Weight: <input type="number" step="0.01" name="min_weight"></label>
+                        <label>Max Weight: <input type="number" step="0.01" name="max_weight"></label>
+                        <label>Start Time: <input type="datetime-local" name="start"></label>
+                        <label>End Time: <input type="datetime-local" name="end"></label>
+                        <button type="submit">Filter</button>
+                    </form>
+                    <div><a href="/events.csv">Download CSV</a></div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Starting Weight</th>
+                                <th>Final Weight</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for event in events %}
+                            <tr>
+                                <td>{{ event.timestamp }}</td>
+                                <td>{{ event.starting_weight }}</td>
+                                <td>{{ event.final_weight }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function sendCommand(endpoint) {
+            fetch(endpoint, { method: 'POST' })
+                .then(res => res.json())
+                .then(data => alert(data.status || 'Success'))
+                .catch(err => alert('Error: ' + err));
+        }
+
+        function calibrate() {
+            const weight = parseFloat(document.getElementById('calibration-weight').value);
+            if (isNaN(weight)) {
+                alert('Please enter a valid calibration weight.');
+                return;
+            }
+
+            fetch('/calibrate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ weight })
+            })
+            .then(res => res.json())
+            .then(data => alert(data.status || 'Calibration complete'))
+            .catch(err => alert('Error: ' + err));
+        }
+
+        function fetchLiveWeight() {
+            fetch('/status')
+                .then(res => res.json())
+                .then(data => {
+                    const weight = data.weight?.toFixed(2) ?? 'N/A';
+                    document.getElementById('live-weight').textContent = weight;
+                })
+                .catch(() => {
+                    document.getElementById('live-weight').textContent = 'Error';
+                });
+        }
+
+        // Poll live weight every 2 seconds
+        setInterval(fetchLiveWeight, 2000);
+        fetchLiveWeight(); // Initial call
+    </script>
+</body>
+</html>
