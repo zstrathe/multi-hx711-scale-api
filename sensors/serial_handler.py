@@ -10,8 +10,6 @@ from sensors.state import message_handler
 SERIAL_ADDRESS = Config.SERIAL_ADDRESS
 SERIAL_BAUDRATE = Config.SERIAL_BAUDRATE
 
-ser = serial.Serial(SERIAL_ADDRESS, SERIAL_BAUDRATE, timeout=1)
-
 def _write_to_serial():
     while True:
         try:
@@ -33,7 +31,10 @@ def _read_from_serial(port=SERIAL_ADDRESS, baudrate=SERIAL_BAUDRATE):
             logging.warning(f"Read error: {e}")
 
 def start_serial_threads():
-    executor = ThreadPoolExecutor(max_workers=2)
-    executor.submit(_write_to_serial)
-    executor.submit(_read_from_serial)
-    
+    try:
+        ser = serial.Serial(SERIAL_ADDRESS, SERIAL_BAUDRATE, timeout=1)
+        executor = ThreadPoolExecutor(max_workers=2)
+        executor.submit(_write_to_serial)
+        executor.submit(_read_from_serial)
+    except Exception as e:
+        logging.error(F"Could not start serial handler, message: {e}")
