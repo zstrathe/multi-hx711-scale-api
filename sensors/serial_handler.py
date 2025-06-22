@@ -32,6 +32,8 @@ def _read_from_serial(port=SERIAL_ADDRESS, baudrate=SERIAL_BAUDRATE):
         except Exception as e:
             logging.warning(f"Read error: {e}")
 
-executor = ThreadPoolExecutor(max_workers=2)
-executor.submit(_write_to_serial)
-executor.submit(_read_from_serial)
+def start_serial_threads():
+    executor = ThreadPoolExecutor(max_workers=2)
+    executor.submit(_write_to_serial)
+    executor.submit(_read_from_serial)
+    
