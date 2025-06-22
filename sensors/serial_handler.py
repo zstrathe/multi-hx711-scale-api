@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from config import Config
 from sensors.message_queue import outgoing_message_queue
-from sensors.state import message_handler
+from sensors.message_handler import message_handler
 
 SERIAL_ADDRESS = Config.SERIAL_ADDRESS
 SERIAL_BAUDRATE = Config.SERIAL_BAUDRATE
