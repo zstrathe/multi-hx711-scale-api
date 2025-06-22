@@ -20,4 +20,4 @@ echo "Starting sensors/serial_handler.py in background..."
 python sensors/serial_handler.py &
 
 echo "Starting FastAPI app with uvicorn..."
-uvicorn api.main:api --host 0.0.0.0 --port 8000
+uvicorn api.main:app --host 0.0.0.0 --port 8000
