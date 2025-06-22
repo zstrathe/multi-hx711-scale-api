@@ -1,12 +1,14 @@
 from fastapi import FastAPI, Body, Form, Request, Query
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from sensors.state import scale_state, message_handler
+
 from config import Config
-from db.database import get_events, get_all_events, get_filtered_events
 from datetime import datetime
 import csv
 import io
+
+from db.database import get_events, get_all_events, get_filtered_events
+from sensors.state import scale_state, message_handler
 
 SERIAL_ADDRESS = Config.SERIAL_ADDRESS
 SERIAL_BAUDRATE = Config.SERIAL_BAUDRATE

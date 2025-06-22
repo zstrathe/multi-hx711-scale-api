@@ -1,7 +1,6 @@
 import logging
 import serial
 from queue import Queue, Empty
-import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from config import Config
