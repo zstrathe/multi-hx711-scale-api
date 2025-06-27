@@ -4,7 +4,7 @@
 #define N_SENSORS 4
 
 int esp32Sck = D13;
-int esp32DIO[] = {D0, D1, D2, D3, D4, D5, D6, D7, D8, D9, D10, D11, D12};
+int esp32DIO[] = {D2, D3, D4, D5, D6, D7, D8, D9, D10, D11, D12};
 
 class Sensors {
     private:
